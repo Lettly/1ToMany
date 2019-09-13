@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
+    <title>1TM - Send</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+
+    <!-- CSS Animation -->
+    <!-- <link rel="stylesheet" href="css/animation.css"> -->
+</head>
+
+<body>
+    <br />
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col col-12 col-md-6 mb-5">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="text-center">Info</h2>
+                    </div>
+                    <div class="card-body">
+                        <h5>
+                            <u>Total user:</u>
+                            <span class="text-secondary" id="totalUser">0</span>
+                        </h5>
+                        <hr />
+                        <h5>
+                            <u>ID:</u>
+                            <span class="text-secondary" id="master-id"></span>
+                        </h5>
+                        <a class="badge badge-success text-white" style="cursor: pointer;"
+                            onclick="copyToClipboard('#master-id')">Copy ID</a>
+                        <a class="badge badge-primary text-white" style="cursor: pointer;"
+                            onclick='copyToClipboard("#master-id", "https:\/\/lettly.github.io/1ToMany/receive.html#")'>Copy
+                            Link</a>
+                        <a class="badge badge-secondary text-white" style="cursor: pointer;" onclick="changeId()">Change
+                            ID</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col col-12 col-md-6">
+                <div class="card mb-2">
+                    <div class="card-header">
+                        <h2 class="text-center">Chat History</h2>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush" id="chat"></ul>
+                    </div>
+                </div>
+                <div class="input-group mb-0">
+                    <input type="text" class="form-control" placeholder="Type here..."
+                        aria-label="Click here to type..." id="sendMessageBox" />
+                    <div class="input-group-append">
+                        <button class="btn btn-outline-primary" type="button" id="sendButton">
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/0.3.18/peer.min.js"></script>
+    <script type="text/javascript">
+        (function () {
+            var lastPeerId_original = null;
+            var lastPeerId_after = []; //Other peer
+            var peer_original = null; // Own peer object
+            var peer_after = []; //Other peer
+            var peerId_original = $(location)
+                .attr("hash")
+                .slice(1, $(location).attr("hash").length);
+            var conn_original = null;
+            var conn_after = [];
+            var recvId = $("#master-id");
+            var message = $("#chat");
+            var sendMessageBox = $("#sendMessageBox");
+            var sendButton = $("#sendButton");
+            var totalUser = $("#totalUser");
+
+            /**
+             * Create the Peer object for our end of the connection.
+             *
+             * Sets up callbacks that handle any events related to our
+             * peer object.
+             *
+             * Create the initial connection to which all clients
+             * connect to receive the id of their session
+             */
+            function initialize() {
+                // Create own peer object with connection to shared PeerJS server
+
+                peer_original = new Peer(peerId_original, {
+                    debug: 2
+                });
+
+                peer_original.on("open", function (id) {
+                    // Workaround for peer.reconnect deleting previous id
+                    if (peer_original.id === null) {
+                        console.log("Received null id from peer open");
+                        peer_original.id = lastPeerId_original;
+                    } else {
+                        lastPeerId_original = peer_original.id;
+                    }
+
+                    console.log("Original ID: " + peer_original.id);
+                    recvId.html(peer_original.id);
+                });
+
+                peer_original.on("connection", function (c) {
+                    // When a new instance connects, it sends the id of the new peer to connect
+                    c.on("open", function () {
+                        peer_after.push(
+                            new Peer(null, {
+                                debug: 2
+                            })
+                        );
+                        // Send the new peer's id to the last connection established
+                        peer_after[peer_after.length - 1].on(
+                            "open",
+                            function (id) {
+                                c.send(
+                                    "{CONNECT_TO}[" +
+                                    peer_after[peer_after.length - 1]
+                                        .id +
+                                    "]"
+                                );
+                                newConnection();
+                            }
+                        );
+                        setTimeout(function () {
+                            c.close();
+                        }, 500); // closes the current instance
+                    });
+                });
+
+                peer_original.on("disconnected", function () {
+                    status.html("Connection lost. Please reconnect");
+                    console.log("Connection lost. Please reconnect");
+
+                    // Workaround for peer.reconnect deleting previous id
+                    peer_original.id = lastPeerId_original;
+                    peer_original._lastServerId = lastPeerId_original;
+                    peer_original.reconnect();
+                });
+
+                peer_original.on("error", function (err) {
+                    console.log(err);
+                    alert("" + err);
+                });
+            }
+
+            /**
+             * Create a new peer for the last connection established.
+             *
+             * This is necessary to allow each connected user
+             * to establish a connection with the broker.
+             */
+            function newConnection() {
+                // Assegna il peer all'ultima sessione avviata
+                var array_id = peer_after.length - 1;
+                var peer = peer_after[array_id];
+
+                peer.on("open", function (id) {
+                    // Workaround for peer.reconnect deleting previous id
+                    if (peer.id === null) {
+                        console.log(
+                            `[${peer.id}]Received null id from peer open`
+                        );
+                        peer.id = lastPeerId_after[array_id];
+                    } else {
+                        lastPeerId_after[array_id] = peer.id;
+                    }
+
+                    console.log("New Connection ID: " + peer.id);
+                });
+
+                peer.on("connection", function (c) {
+                    conn_after[array_id] = c;
+                    console.log(
+                        `[${peer.id}]Connected to: ` +
+                        conn_after[array_id].peer
+                    );
+
+                    totalUser.html(conn_after.length);
+                });
+
+                peer.on("disconnected", function () {
+                    console.log(
+                        `[${peer.id}]Connection lost. Please reconnect`
+                    );
+
+                    // Workaround for peer.reconnect deleting previous id
+                    peer.id = lastPeerId_after[array_id];
+                    peer._lastServerId = lastPeerId_after[array_id];
+                    peer.reconnect();
+                });
+
+                peer.on("close", function () {
+                    conn_after[array_id] = null;
+                    console.log(`[${peer.id}]Connection destroyed`);
+
+                    // Rimuovilo dall'array
+                    lastPeerId_after.splice(array_id, 1);
+                    conn_after.splice(array_id, 1);
+                    totalUser.html(conn_after.length);
+                });
+
+                peer.on("error", function (err) {
+                    console.log(err);
+                    alert(`[${peer.id}]` + err);
+                });
+            }
+
+            function addMessage(msg) {
+                var now = new Date();
+                var h = now.getHours();
+                var m = addZero(now.getMinutes());
+                var s = addZero(now.getSeconds());
+
+                if (h > 12) h -= 12;
+                else if (h === 0) h = 12;
+
+                function addZero(t) {
+                    if (t < 10) t = "0" + t;
+                    return t;
+                }
+
+                message.html(
+                    '<li class="list-group-item message-fade">' +
+                    sanitizeText(msg) +
+                    '<br><small class="text-secondary">>' +
+                    h +
+                    ":" +
+                    m +
+                    ":" +
+                    s +
+                    "</small></li>" +
+                    message.html()
+                );
+            }
+
+            // Listen for enter
+            sendMessageBox.keypress(function (e) {
+                var event = e || window.event;
+                var char = event.which || event.keyCode;
+                if (char == "13") sendButton.click();
+            });
+
+            // Send message
+            sendButton.click(function () {
+                var msg = sendMessageBox.val();
+
+                if (msg != "" && msg != null) {
+                    sendMessageBox.val("");
+
+                    conn_after.forEach(peer => {
+                        if (peer.open) {
+                            peer.send(msg);
+                            console.log(`[${peer.id}]Sent: ` + msg);
+                        }
+                    });
+                    addMessage(msg);
+                }
+            });
+
+            initialize();
+        })();
+
+        function changeId() {
+            var hastag = prompt(
+                "ATTENTION: Inserting the ID manually can cause conflict problems\n\nEnter the new id [Leave it blank to generate it randomly]:"
+            );
+            if (hastag === null) return;
+            window.location.hash = "#" + hastag;
+            location.reload();
+        }
+
+        function copyToClipboard(element, prepend = null) {
+            var $temp = $("<input>");
+            $("body").append($temp);
+            if (prepend != null) {
+                $temp.val(prepend + $(element).text()).select();
+            } else {
+                $temp.val($(element).text()).select();
+            }
+            document.execCommand("copy");
+            $temp.remove();
+        }
+
+        function sanitizeText(text) {
+            var $temp = $("<p>");
+            $("body").append($temp);
+            $temp.text(text);
+            var sanitizedText = $temp.html();
+            $temp.remove();
+            return sanitizedText;
+        }
+    </script>
+</body>
+
+</html>
