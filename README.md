@@ -27,4 +27,4 @@ Just download it and open it on a browser.
  - [jQuery](https://github.com/jquery/jquery) JavaScript library.
  - [Bootstrap](https://github.com/twbs/bootstrap) Front-end framework.
 ---
-Made with ❤️ by [Lettly]([https://github.com/lettly](https://github.com/lettly)) and [Habby](https://github.com/habby1337)
+Made with ❤️ by [Lettly](https://github.com/lettly) and [Habby](https://github.com/habby1337)
